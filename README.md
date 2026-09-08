@@ -31,6 +31,7 @@ By decoupling storage from compute, Google Cloud's Lakehouse architecture enable
 > **Published Technical Articles (Dev.to)**:  
 > 1. [Unifying Google Workspace and Apache Iceberg: Serverless Lakehouse Management](https://dev.to/gde/unifying-google-workspace-and-apache-iceberg-serverless-lakehouse-management-ep3)
 > 2. [Serverless Multimodal Vector Search on Apache Iceberg via Google Apps Script](https://dev.to/gde/serverless-multimodal-vector-search-on-apache-iceberg-via-google-apps-script-4fg)
+> 3. [Bidirectional Writeback for Apache Iceberg via Google Sheets: Serverless Lakehouse Console](applications/writeback-sheets-ui)
 
 ---
 
@@ -388,6 +389,27 @@ IcebergApp can be effortlessly exposed as deterministic MCP tools hosted directl
 
 ---
 
+## Applications: Interactive Writeback Console (Google Sheets)
+
+An enterprise-ready end-user application built on top of `IcebergApp` is available in [`applications/writeback-sheets-ui`](applications/writeback-sheets-ui):
+
+### [Apache Iceberg Writeback UI via Google Sheets](applications/writeback-sheets-ui)
+Transforms Google Sheets into a high-performance, interactive bidirectional writeback console for Google Cloud Lakehouse (Apache Iceberg and BigQuery).
+
+While tools like Google Connected Sheets provide read-only access to BigQuery, business operators often need to adjust records, update pricing, or resolve data quality issues directly within their spreadsheets. **Apache Iceberg Writeback UI** bridges this gap with zero external SaaS ETL dependencies:
+
+- **Differential Change Data Capture (CDC)**: In-memory CDC compares active spreadsheet edits against a hidden immutable baseline snapshot (`__iceberg_baseline__`) to identify `ADDED`, `MODIFIED`, and `DELETED` rows without cell-by-cell API latency.
+- **Single-Query Atomic `MERGE INTO` Writeback**: Synthesizes a unified BigQuery `MERGE INTO` DML statement with strict column type casting, executing all row additions, updates, and deletions in a single atomic sub-second transaction.
+- **Optimistic Concurrency Control (OCC) with Microsecond Discrepancy Tolerance**: Validates `updated_at` timestamps using second-level delta assertions (`TIMESTAMP_DIFF(T.updated_at, S._orig_updated_at, SECOND) = 0`) to seamlessly bridge the microsecond-precision gap between BigQuery ($10^{-6}$s) and Google Sheets ($10^{-3}$s) while preventing concurrent overwrites.
+- **100,000-Cell Safeguard**: Pre-computes cell volume (`total_rows * total_columns`) before full table exports to preserve spreadsheet responsiveness and prevent browser lockup.
+- **Privacy Mode for Screencasts & Public Demos**: One-click DOM masking toggle (`[🛡️ Privacy: OFF]` ⇄ `[🔒 Privacy: ON]`) that masks GCP Project IDs, Dataset IDs, Bucket URIs, and queries with bullet points (`••••••••••••`), enabling secure live demonstrations and video recordings.
+- **Deterministic Primary Key Sorting**: Table queries and post-commit inspections automatically sort rows by primary key (`ORDER BY id ASC`) for consistent tabular layout.
+- **Dual Verification Modes**: Interactive sidebar console (`Sidebar.html` / `Code.js`) with step badges alongside an autonomous zero-residue headless test suite (`HeadlessTest.js`).
+
+For full deployment instructions, sequence diagrams, and configuration details, refer to [`applications/writeback-sheets-ui/README.md`](applications/writeback-sheets-ui/README.md).
+
+---
+
 ## Sample Scenarios & Automation (`src/samples.js`)
 
 [`src/samples.js`](src/samples.js) provides production-ready scenarios demonstrating multimodal binary data integration, Google Drive synchronization, Gemini AI vector similarity search, and high-capacity 50MB multipart uploads.
@@ -487,6 +509,7 @@ The automated test suite (`src/test.js`) operates in a **Pure Lifecycle Mode** w
 ## Update History
 
 - **v1.2.0 (September 8, 2026)**
+  - **Interactive Writeback Console for Google Sheets (`applications/writeback-sheets-ui`)**: Added production-ready bidirectional writeback application featuring differential CDC, single-query atomic `MERGE INTO`, microsecond-tolerant OCC (`TIMESTAMP_DIFF`), Privacy Mode DOM masking for public demos, 100,000-cell safeguard, and autonomous headless verification test suite.
   - **High-Capacity Binary Multipart Upload (up to 50MB)**: Added `IcebergApp.uploadToDrive()`, `IcebergApp.uploadToStorage()`, and `IcebergTable.prototype.uploadAsset()` using Kanshi Tanaike's zero-dependency `multipart/form-data` upload architecture with `UrlFetchApp.fetch`, overcoming BigQuery's 1MB SQL query length limit.
   - **Size Integrity & BigQuery Storage Optimization**: Preserves exact uploaded byte size in the Iceberg table's `size` column while setting BigQuery's inline `data` (`BYTES`) column to `NULL` when external storage (Drive/GCS) is used, preventing duplicate storage costs and query bloat.
   - **Google Workspace Document Normalization (Default PDF Export)**: Ingestion of Google Docs, Sheets, and Slides (`application/vnd.google-apps.*`) natively converts them to standard `application/pdf` via `getBlob()`, ensuring format fidelity and universal portability.

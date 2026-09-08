@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iceberg Lakehouse Console</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-indigo: #818cf8;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --input-bg: #090d16;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Header & Badge */
+    .header {
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-blue);
+    }
+
+    .btn-privacy {
+      width: auto;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 4px;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-privacy:hover {
+      background: rgba(51, 65, 85, 0.9);
+      color: #f1f5f9;
+      border-color: var(--accent-blue);
+    }
+
+    .btn-privacy.active {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: var(--accent-emerald);
+      color: #34d399;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .header-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-repo-link {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 10px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .header-repo-link:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #bae6fd;
+    }
+
+    .privacy-mode .status-val.masked {
+      letter-spacing: 0.08em;
+      color: #38bdf8;
+    }
+
+    /* Footer GitHub Link */
+    .footer {
+      margin-top: 18px;
+      margin-bottom: 24px;
+      padding-top: 14px;
+      border-top: 1px solid var(--card-border);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .github-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .github-link:hover {
+      background: rgba(51, 65, 85, 0.95);
+      color: #38bdf8;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+    }
+
+    .github-link svg {
+      flex-shrink: 0;
+    }
+
+    .github-link .ext-icon {
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    .github-link:hover .ext-icon {
+      color: #38bdf8;
+    }
+
+    .footer-version {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    /* Top Persistent Status Panel */
+    .status-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 11px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .status-label {
+      color: var(--text-muted);
+    }
+
+    .status-val {
+      font-family: monospace;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-ready { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); border: 1px solid var(--accent-emerald); }
+    .badge-running { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); animation: pulse 1.5s infinite; }
+    .badge-pending { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+    .badge-none { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid var(--card-border); }
+    .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+      transition: border-color 0.2s ease;
+    }
+
+    .card.completed {
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-blue);
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* Inline Step Execution Result Box */
+    .step-result {
+      display: none;
+      background: rgba(15, 23, 42, 0.85);
+      border-left: 3px solid var(--accent-emerald);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+      word-break: break-word;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .step-result.active {
+      display: block;
+    }
+
+    .step-result.result-purge {
+      border-left-color: var(--accent-amber);
+      color: #fde68a;
+    }
+
+    /* Form Controls */
+    textarea {
+      width: 100%;
+      height: 65px;
+      background-color: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 8px;
+      resize: vertical;
+      margin-bottom: 8px;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent-blue);
+    }
+
+    /* Buttons */
+    button {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, #0d9488, #059669);
+      color: #fff;
+    }
+    .btn-action:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0f766e, #047857);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: #fff;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: linear-gradient(135deg, #b91c1c, #991b1b);
+    }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toast Notification */
+    #toast {
+      display: none;
+      border-radius: 6px;
+      padding: 9px 12px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .toast-success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--accent-emerald);
+      color: #a7f3d0;
+    }
+
+    .toast-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+    }
+
+    .toast-info {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--accent-blue);
+      color: #bae6fd;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .cell-guard-box {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 3px solid var(--accent-amber);
+      padding: 5px 8px;
+      font-size: 10px;
+      color: #fde68a;
+      margin-bottom: 8px;
+    }
+
+    /* Modal Dialog */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(4px);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      box-sizing: border-box;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-card {
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 330px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(37, 99, 235, 0.2));
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-header-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      text-align: center;
+      border-radius: 4px;
+    }
+
+    .modal-close-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .modal-body {
+      padding: 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #e2e8f0;
+      max-height: 380px;
+      overflow-y: auto;
+    }
+
+    .modal-intro {
+      margin: 0 0 8px 0;
+      font-size: 12px;
+      color: #f1f5f9;
+    }
+
+    .modal-sub {
+      margin: 0 0 12px 0;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .guide-item {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .guide-item-modify {
+      border-left: 3px solid var(--accent-blue);
+    }
+    .guide-item-delete {
+      border-left: 3px solid var(--accent-red);
+    }
+    .guide-item-add {
+      border-left: 3px solid var(--accent-emerald);
+    }
+
+    .guide-icon {
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    .guide-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11px;
+    }
+
+    .guide-text strong {
+      font-size: 11px;
+      color: #fff;
+    }
+
+    .guide-text span {
+      color: #94a3b8;
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .guide-text code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 1px 3px;
+      border-radius: 3px;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 10px;
+    }
+
+    .modal-hint {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 3px solid var(--accent-amber);
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: #fde68a;
+      line-height: 1.4;
+    }
+
+    .modal-footer {
+      padding: 10px 14px 14px;
+      background: #0f172a;
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <div class="header-title">
+        <span>🧊 Iceberg Lakehouse</span>
+      </div>
+      <button id="btnPrivacyToggle" class="btn-privacy" onclick="togglePrivacyMode()" title="Toggle Privacy Mode (Mask sensitive GCP Project & Dataset IDs for demo/video)">
+        <span id="privacyIcon">🛡️</span> <span id="privacyLabel">Privacy: OFF</span>
+      </button>
+    </div>
+    <div class="header-sub">
+      <span>End-User Writeback Console</span>
+      <a href="https://github.com/tanaikech/IcebergApp" target="_blank" rel="noopener noreferrer" class="header-repo-link" title="Open GitHub Repository: tanaikech/IcebergApp">
+        <span>GitHub</span> &#x2197;
+      </a>
+    </div>
+  </div>
+
+  <!-- Persistent Top Status Panel -->
+  <div class="status-panel">
+    <div class="status-row">
+      <span class="status-label">Project ID:</span>
+      <span class="status-val" id="statusProject">Loading...</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Region:</span>
+      <span class="status-val" id="statusRegion">Loading...</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Dataset:</span>
+      <span class="status-val" id="statusDataset">-</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Status:</span>
+      <span id="statusBadge" class="badge badge-none">Checking</span>
+    </div>
+  </div>
+
+  <!-- Toast Notification Area -->
+  <div id="toast"></div>
+
+  <!-- SECTION 1: Infrastructure Setup -->
+  <div class="card" id="cardStep1">
+    <div class="card-title">
+      <span>Step 1: Setup & Staging</span>
+      <span id="badgeStep1" class="badge badge-none">Pending</span>
+    </div>
+    <div class="card-desc">Provision ephemeral BigQuery Dataset & GCS Bucket, and stage 5x20 sample data.</div>
+    <div id="resultStep1" class="step-result"></div>
+    <button id="btnInitInfra" class="btn-primary" onclick="handleInitInfra()">
+      <span>Initialize Infrastructure</span>
+    </button>
+  </div>
+
+  <!-- SECTION 2: Iceberg Table Provisioning -->
+  <div class="card" id="cardStep2">
+    <div class="card-title">
+      <span>Step 2: Table Creation</span>
+      <span id="badgeStep2" class="badge badge-none">Pending</span>
+    </div>
+    <div class="card-desc">Create Iceberg table on Cloud Storage via IcebergApp and ingest initial 20 records.</div>
+    <div id="resultStep2" class="step-result"></div>
+    <button id="btnCreateTable" class="btn-primary" onclick="handleCreateTable()">
+      <span>Create Iceberg Table</span>
+    </button>
+  </div>
+
+  <!-- SECTION 3: Query & Filter -->
+  <div class="card" id="cardStep3">
+    <div class="card-title">
+      <span>Step 3: Query & Validate</span>
+      <span id="badgeStep3" class="badge badge-none">Pending</span>
+    </div>
+    <div class="card-desc">Execute query with Predicate Pushdown and enforce Google Sheets validation.</div>
+    <textarea id="queryInput" placeholder="SELECT * FROM table WHERE ..."></textarea>
+    <div id="resultStep3" class="step-result"></div>
+    <button id="btnRunQuery" class="btn-primary" onclick="handleRunQuery()">
+      <span>Execute Query</span>
+    </button>
+  </div>
+
+  <!-- SECTION 4: Differential Writeback (CDC) -->
+  <div class="card" id="cardStep4">
+    <div class="card-title">
+      <span>Step 4: Differential Writeback</span>
+      <span id="badgeStep4" class="badge badge-none">Pending</span>
+    </div>
+    <div class="card-desc">Compute Added, Modified, and Deleted rows. Commit via single atomic MERGE INTO.</div>
+    <div id="resultStep4" class="step-result"></div>
+    <button id="btnCommitChanges" class="btn-action" onclick="handleCommitChanges()">
+      <span>Commit Changes (Writeback)</span>
+    </button>
+  </div>
+
+  <!-- SECTION 5: Audit & Full Data Inspection -->
+  <div class="card" id="cardStep5">
+    <div class="card-title">
+      <span>Step 5: Full Inspection</span>
+      <span id="badgeStep5" class="badge badge-none">Pending</span>
+    </div>
+    <div class="cell-guard-box">
+      🛡️ 100,000-cell safety threshold enforced. Prevents browser freeze on huge tables.
+    </div>
+    <div id="resultStep5" class="step-result"></div>
+    <button id="btnGetAllData" class="btn-warning" onclick="handleGetAllData()">
+      <span>Get All Current Data</span>
+    </button>
+  </div>
+
+  <!-- SECTION 6: Teardown & Purge -->
+  <div class="card" id="cardStep6" style="border-color: rgba(239, 68, 68, 0.4);">
+    <div class="card-title" style="color: var(--accent-red);">
+      <span>Step 6: Reset & Teardown</span>
+      <span id="badgeStep6" class="badge badge-danger">Danger</span>
+    </div>
+    <div class="card-desc">Safe at any step: drops table, deletes bucket objects & bucket, drops dataset. Project ID & Region are preserved.</div>
+    <div id="resultStep6" class="step-result result-purge"></div>
+    <button id="btnResetPurge" class="btn-danger" onclick="handleResetPurge()">
+      <span>All Reset & Purge</span>
+    </button>
+  </div>
+
+  <!-- Footer with GitHub Repository Link -->
+  <div class="footer">
+    <a href="https://github.com/tanaikech/IcebergApp" target="_blank" rel="noopener noreferrer" class="github-link" title="Visit IcebergApp Repository on GitHub">
+      <svg class="github-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      <span>github.com/tanaikech/IcebergApp</span>
+      <span class="ext-icon">&#x2197;</span>
+    </a>
+    <div class="footer-version">Apache Iceberg &bull; Google Apps Script Lakehouse Engine</div>
+  </div>
+
+  <!-- Step 3 Interactive Test Instructions Modal Overlay -->
+  <div id="instructionModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span>📝 Action: Test Differential Edits</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeInstructionModal()" title="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          Query results loaded into active sheet <strong>'queried_data'</strong>!
+        </p>
+        <p class="modal-sub">
+          Before clicking <strong>Step 4: Commit Changes</strong>, perform any of the following edits in the sheet to test Iceberg writeback:
+        </p>
+
+        <div class="guide-item guide-item-modify">
+          <div class="guide-icon">✏️</div>
+          <div class="guide-text">
+            <strong>1. Modify (Update)</strong>
+            <span>Change any <code>price</code> or <code>stock</code> cell value. (Cell validation will enforce positive values!)</span>
+          </div>
+        </div>
+
+        <div class="guide-item guide-item-delete">
+          <div class="guide-icon">🗑️</div>
+          <div class="guide-text">
+            <strong>2. Delete (Remove)</strong>
+            <span>Delete an entire row (right click row number &rarr; <em>Delete row</em>).</span>
+          </div>
+        </div>
+
+        <div class="guide-item guide-item-add">
+          <div class="guide-icon">➕</div>
+          <div class="guide-text">
+            <strong>3. Add (Insert)</strong>
+            <span>Add a new row at the bottom with a unique <code>id</code> (e.g. <code>99</code>, <code>"USB-C Hub"</code>, <code>2499.0</code>, <code>50</code>).</span>
+          </div>
+        </div>
+
+        <div class="modal-hint">
+          💡 <strong>Tip:</strong> Close this dialog, edit the sheet freely, and then click <strong>Step 4: Commit Changes (Writeback)</strong> to merge into Apache Iceberg!
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" onclick="closeInstructionModal()">
+          <span>Got it! Close & Start Editing</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client-Side Controller -->
+  <script>
+    let currentConfig = null;
+    let isPrivacyMode = false;
+
+    window.onload = function() {
+      refreshConfig();
+    };
+
+    function refreshConfig() {
+      google.script.run
+        .withSuccessHandler(updateUiState)
+        .withFailureHandler(showError)
+        .getSpreadsheetConfig();
+    }
+
+    function normalizeStepNum(stepNum) {
+      return String(stepNum).replace(/^step/i, '').trim();
+    }
+
+    /**
+     * Masks sensitive project, dataset, and bucket IDs for demo and recording.
+     */
+    function maskText(str) {
+      if (!isPrivacyMode || !str || typeof str !== 'string') return str;
+      let out = str;
+      if (currentConfig) {
+        if (currentConfig.projectId) {
+          out = out.split(currentConfig.projectId).join('••••••••••••');
+        }
+        if (currentConfig.datasetId) {
+          out = out.split(currentConfig.datasetId).join('lakehouse_wb_••••••••');
+        }
+        if (currentConfig.bucketName) {
+          out = out.split(currentConfig.bucketName).join('lakehouse-wb-••••••••');
+        }
+      }
+      out = out.replace(/gs:\/\/[a-zA-Z0-9._-]+/g, 'gs://lakehouse-••••');
+      return out;
+    }
+
+    /**
+     * Restores real Project & Dataset IDs into query if masked in input.
+     */
+    function unmaskQuery(query) {
+      if (!currentConfig || !query) return query;
+      let clean = query;
+      if (currentConfig.projectId) {
+        clean = clean.replace(/••••••••••••/g, currentConfig.projectId);
+      }
+      if (currentConfig.datasetId) {
+        clean = clean.replace(/lakehouse_wb_••••••••/g, currentConfig.datasetId);
+      }
+      return clean;
+    }
+
+    function togglePrivacyMode() {
+      isPrivacyMode = !isPrivacyMode;
+      const btn = document.getElementById('btnPrivacyToggle');
+      const icon = document.getElementById('privacyIcon');
+      const label = document.getElementById('privacyLabel');
+
+      if (btn) btn.classList.toggle('active', isPrivacyMode);
+      if (icon) icon.innerText = isPrivacyMode ? '🔒' : '🛡️';
+      if (label) label.innerText = isPrivacyMode ? 'Privacy: ON' : 'Privacy: OFF';
+      document.body.classList.toggle('privacy-mode', isPrivacyMode);
+
+      // Refresh status panel
+      if (currentConfig) {
+        updateUiState(currentConfig);
+      }
+
+      // Refresh query input box
+      const queryBox = document.getElementById('queryInput');
+      if (queryBox && queryBox.value) {
+        if (isPrivacyMode) {
+          queryBox.dataset.rawQuery = queryBox.value;
+          queryBox.value = maskText(queryBox.value);
+        } else if (queryBox.dataset.rawQuery) {
+          queryBox.value = queryBox.dataset.rawQuery;
+        }
+      }
+
+      // Re-render all step result boxes with or without masks
+      for (let i = 1; i <= 6; i++) {
+        const resBox = document.getElementById(`resultStep${i}`);
+        if (resBox && resBox.dataset.rawHtml) {
+          const isError = resBox.innerHTML.includes('❌ Error:');
+          const isPurge = (i === 6 && resBox.innerHTML.includes('🧹 Purged:'));
+          let prefix = '<strong>✅ Done:</strong> ';
+          if (isError) prefix = '<strong style="color:var(--accent-red);">❌ Error:</strong> ';
+          else if (isPurge) prefix = '<strong>🧹 Purged:</strong> ';
+          resBox.innerHTML = `${prefix}${maskText(resBox.dataset.rawHtml)}`;
+        }
+      }
+
+      showToast(isPrivacyMode ? '🔒 Privacy Mode ON: Project & Dataset IDs masked for video/demo.' : '🛡️ Privacy Mode OFF: Real project IDs restored.', 'info');
+    }
+
+    function updateUiState(cfg) {
+      currentConfig = cfg;
+      const projElem = document.getElementById('statusProject');
+      const dsElem = document.getElementById('statusDataset');
+
+      if (isPrivacyMode) {
+        projElem.innerText = cfg.projectId ? '••••••••••••' : '(Not Configured)';
+        projElem.classList.add('masked');
+        dsElem.innerText = cfg.datasetId ? 'lakehouse_wb_••••••••' : '(None)';
+        dsElem.classList.add('masked');
+      } else {
+        projElem.innerText = cfg.projectId || '(Not Configured)';
+        projElem.classList.remove('masked');
+        dsElem.innerText = cfg.datasetId || '(None)';
+        dsElem.classList.remove('masked');
+      }
+      document.getElementById('statusRegion').innerText = cfg.region;
+
+      const badge = document.getElementById('statusBadge');
+      if (!cfg.projectId) {
+        badge.className = 'badge badge-none';
+        badge.innerText = 'No Project';
+      } else if (!cfg.isInfraReady) {
+        badge.className = 'badge badge-pending';
+        badge.innerText = 'Needs Init';
+      } else {
+        badge.className = 'badge badge-ready';
+        badge.innerText = 'Connected';
+      }
+
+      // Restore step completion state from server config
+      if (cfg.isInfraReady) {
+        setStepCompleted(1, `Dataset [${cfg.datasetId}], Bucket [${cfg.bucketName}]. Staged sample data.`);
+      }
+      if (cfg.isTableReady) {
+        setStepCompleted(2, `Table '${cfg.tableName}' active on Cloud Storage via IcebergApp.`);
+      }
+      if (cfg.hasQueriedData) {
+        setStepCompleted(3, `Active query records loaded in 'queried_data' with validation.`);
+      }
+      if (cfg.hasCurrentData) {
+        setStepCompleted(5, `Full table records active in 'current_data'.`);
+      }
+
+      if (cfg.defaultQuery && !document.getElementById('queryInput').value) {
+        const queryBox = document.getElementById('queryInput');
+        queryBox.dataset.rawQuery = cfg.defaultQuery;
+        queryBox.value = isPrivacyMode ? maskText(cfg.defaultQuery) : cfg.defaultQuery;
+      }
+    }
+
+    function setStepRunning(stepNum) {
+      const n = normalizeStepNum(stepNum);
+      const badge = document.getElementById(`badgeStep${n}`);
+      if (badge) {
+        badge.className = 'badge badge-running';
+        badge.innerText = 'RUNNING';
+      }
+    }
+
+    function setStepCompleted(stepNum, resultText) {
+      const n = normalizeStepNum(stepNum);
+      const badge = document.getElementById(`badgeStep${n}`);
+      const card = document.getElementById(`cardStep${n}`);
+      const resBox = document.getElementById(`resultStep${n}`);
+
+      if (badge) {
+        badge.className = 'badge badge-ready';
+        badge.innerText = 'COMPLETED';
+      }
+      if (card) {
+        card.classList.add('completed');
+      }
+      if (resBox && resultText) {
+        resBox.dataset.rawHtml = resultText;
+        resBox.innerHTML = `<strong>✅ Done:</strong> ${maskText(resultText)}`;
+        resBox.classList.add('active');
+      }
+    }
+
+    function setStepFailed(stepNum, errorText) {
+      const n = normalizeStepNum(stepNum);
+      const badge = document.getElementById(`badgeStep${n}`);
+      const card = document.getElementById(`cardStep${n}`);
+      const resBox = document.getElementById(`resultStep${n}`);
+
+      if (badge) {
+        badge.className = 'badge badge-danger';
+        badge.innerText = 'FAILED';
+      }
+      if (card) {
+        card.classList.remove('completed');
+      }
+      if (resBox && errorText) {
+        resBox.dataset.rawHtml = errorText;
+        resBox.innerHTML = `<strong style="color:var(--accent-red);">❌ Error:</strong> ${maskText(errorText)}`;
+        resBox.classList.add('active');
+      }
+    }
+
+    function resetAllStepUi() {
+      for (let i = 1; i <= 6; i++) {
+        const badge = document.getElementById(`badgeStep${i}`);
+        const card = document.getElementById(`cardStep${i}`);
+        const resBox = document.getElementById(`resultStep${i}`);
+
+        if (badge) {
+          badge.className = (i === 6) ? 'badge badge-danger' : 'badge badge-none';
+          badge.innerText = (i === 6) ? 'Danger' : 'Pending';
+        }
+        if (card) {
+          card.classList.remove('completed');
+        }
+        if (resBox) {
+          resBox.innerText = '';
+          delete resBox.dataset.rawHtml;
+          resBox.classList.remove('active');
+        }
+      }
+      closeInstructionModal();
+    }
+
+    function setWorking(btnId, isWorking, label) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.disabled = isWorking;
+      if (isWorking) {
+        btn.innerHTML = `<span class="spinner"></span> <span>Executing...</span>`;
+      } else {
+        btn.innerHTML = `<span>${label}</span>`;
+      }
+    }
+
+    function showToast(msg, type = 'info') {
+      const toast = document.getElementById('toast');
+      toast.style.display = 'block';
+      toast.className = `toast-${type}`;
+      toast.innerText = msg;
+    }
+
+    function showError(err) {
+      const msg = (err && err.message) ? err.message : String(err);
+      showToast(msg, 'error');
+    }
+
+    /* Button Handlers */
+
+    function handleInitInfra() {
+      setWorking('btnInitInfra', true, 'Initialize Infrastructure');
+      setStepRunning(1);
+      showToast('Provisioning BigQuery Dataset and GCS Bucket...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          setWorking('btnInitInfra', false, 'Initialize Infrastructure');
+          showToast(res.message, 'success');
+          setStepCompleted(1, `Dataset [${res.config.datasetId}], Bucket [${res.config.bucketName}]. Staged 20 rows in 'default_data'.`);
+          updateUiState(res.config);
+        })
+        .withFailureHandler(function(err) {
+          setWorking('btnInitInfra', false, 'Initialize Infrastructure');
+          setStepFailed(1, err.message || err);
+          showError(err);
+        })
+        .stepInitInfra();
+    }
+
+    function handleCreateTable() {
+      setWorking('btnCreateTable', true, 'Create Iceberg Table');
+      setStepRunning(2);
+      showToast('Creating Iceberg table & inserting records via IcebergApp...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          setWorking('btnCreateTable', false, 'Create Iceberg Table');
+          showToast(res.message, 'success');
+          const tName = res.tableName || res.config.tableName;
+          const rCount = res.insertedCount || 20;
+          setStepCompleted(2, `Table '${tName}' created via IcebergApp with ${rCount} records ingested into Cloud Storage.`);
+          document.getElementById('queryInput').value = isPrivacyMode ? maskText(res.defaultQuery) : res.defaultQuery;
+          document.getElementById('queryInput').dataset.rawQuery = res.defaultQuery;
+          updateUiState(res.config);
+        })
+        .withFailureHandler(function(err) {
+          setWorking('btnCreateTable', false, 'Create Iceberg Table');
+          setStepFailed(2, err.message || err);
+          showError(err);
+        })
+        .stepCreateTable();
+    }
+
+    function openInstructionModal() {
+      const modal = document.getElementById('instructionModal');
+      if (modal) {
+        modal.classList.add('active');
+      }
+    }
+
+    function closeInstructionModal() {
+      const modal = document.getElementById('instructionModal');
+      if (modal) {
+        modal.classList.remove('active');
+      }
+    }
+
+    // Close modal on clicking outside or ESC key
+    document.addEventListener('click', function(e) {
+      const modal = document.getElementById('instructionModal');
+      if (e.target === modal) {
+        closeInstructionModal();
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeInstructionModal();
+      }
+    });
+
+    function handleRunQuery() {
+      const rawInput = document.getElementById('queryInput').value;
+      if (!rawInput.trim()) {
+        showToast('Please enter a valid SQL query.', 'error');
+        return;
+      }
+
+      // Automatically unmask query before sending to BigQuery
+      const sql = unmaskQuery(rawInput);
+
+      setWorking('btnRunQuery', true, 'Execute Query');
+      setStepRunning(3);
+      showToast('Executing query with Predicate Pushdown...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          setWorking('btnRunQuery', false, 'Execute Query');
+          showToast(res.message, 'success');
+          setStepCompleted(3, `Returned ${res.rowCount} rows into 'queried_data'.<br><span style="color:#fde68a;">👉 <strong>Next:</strong> Edit 'queried_data' (modify, delete, or add rows), then run Step 4.</span> <a href="javascript:void(0)" onclick="openInstructionModal()" style="color:#38bdf8; text-decoration:underline; font-size:10px; margin-left:4px;">[View Guide]</a>`);
+          updateUiState(res.config);
+          openInstructionModal();
+        })
+        .withFailureHandler(function(err) {
+          setWorking('btnRunQuery', false, 'Execute Query');
+          setStepFailed(3, err.message || err);
+          showError(err);
+        })
+        .stepExecuteQuery(sql);
+    }
+
+    function handleCommitChanges() {
+      setWorking('btnCommitChanges', true, 'Commit Changes (Writeback)');
+      setStepRunning(4);
+      showToast('Calculating CDC differences & dispatching atomic MERGE INTO...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          setWorking('btnCommitChanges', false, 'Commit Changes (Writeback)');
+          showToast(res.message, 'success');
+          setStepCompleted(4, `Committed: ${res.added} added, ${res.modified} modified, ${res.deleted} deleted (Affected: ${res.affectedRows} rows).`);
+        })
+        .withFailureHandler(function(err) {
+          setWorking('btnCommitChanges', false, 'Commit Changes (Writeback)');
+          setStepFailed(4, err.message || err);
+          showError(err);
+        })
+        .stepCommitChanges();
+    }
+
+    function handleGetAllData() {
+      setWorking('btnGetAllData', true, 'Get All Current Data');
+      setStepRunning(5);
+      showToast('Checking 100k-cell safety boundary & exporting table...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          setWorking('btnGetAllData', false, 'Get All Current Data');
+          showToast(res.message, 'success');
+          setStepCompleted(5, `Exported ${res.writtenRows} rows (sorted by ID ASC) to 'current_data' via IcebergApp.`);
+        })
+        .withFailureHandler(function(err) {
+          setWorking('btnGetAllData', false, 'Get All Current Data');
+          setStepFailed(5, err.message || err);
+          showError(err);
+        })
+        .stepGetAllCurrentData();
+    }
+
+    function handleResetPurge() {
+      if (!confirm("Are you sure you want to purge all test infrastructure (BigQuery Dataset, GCS Bucket, and local test sheets)?\n\nNote: Your GCP Project ID and Region will be safely preserved.")) {
+        return;
+      }
+
+      setWorking('btnResetPurge', true, 'All Reset & Purge');
+      setStepRunning(6);
+      showToast('Purging table, GCS bucket, and BigQuery dataset...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          setWorking('btnResetPurge', false, 'All Reset & Purge');
+          showToast(res.message, 'success');
+
+          // Reset all step badges and clear results
+          resetAllStepUi();
+
+          // Display purge result summary in Step 6
+          const purgeResult = document.getElementById('resultStep6');
+          const rawPurgeMsg = `Environment reset to clean state. Project ID [${res.config.projectId}] & Region [${res.config.region}] retained.`;
+          purgeResult.dataset.rawHtml = rawPurgeMsg;
+          purgeResult.innerHTML = `<strong>🧹 Purged:</strong> ${maskText(rawPurgeMsg)}`;
+          purgeResult.classList.add('active');
+
+          updateUiState(res.config);
+        })
+        .withFailureHandler(function(err) {
+          setWorking('btnResetPurge', false, 'All Reset & Purge');
+          setStepFailed(6, err.message || err);
+          showError(err);
+        })
+        .stepResetAndPurge();
+    }
+  </script>
+</body>
+</html>
