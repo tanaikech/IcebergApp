@@ -14,8 +14,9 @@
   "oauthScopes": [
     "https://www.googleapis.com/auth/bigquery",
     "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/devstorage.read_write",
+    "https://www.googleapis.com/auth/devstorage.full_control",
     "https://www.googleapis.com/auth/script.external_request"
   ]
 }

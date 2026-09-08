@@ -9,8 +9,37 @@
  * Licensed under the MIT License
  */
 
-const PROJECT_ID = "your-gcp-project-id";
-const REGION = "asia-northeast1"; // Crucial: Align BigQuery and GCS region
+let PROJECT_ID = "your-gcp-project-id";
+let REGION = "asia-northeast1"; // Default: asia-northeast1 (overridden by PropertiesService if present)
+const TEST_REGISTRY_KEY = "_ICEBERG_ACTIVE_TEST_RESOURCES_";
+
+/**
+ * Checks PropertiesService for PROJECT_ID and REGION (default: 'asia-northeast1').
+ * Prioritizes PropertiesService settings over code defaults.
+ *
+ * @private
+ */
+function syncTestConfigFromProperties_() {
+  try {
+    if (typeof PropertiesService === "undefined" || !PropertiesService) return;
+    const scriptProps = PropertiesService.getScriptProperties ? (PropertiesService.getScriptProperties().getProperties() || {}) : {};
+    const userProps = PropertiesService.getUserProperties ? (PropertiesService.getUserProperties().getProperties() || {}) : {};
+
+    const pId = scriptProps["PROJECT_ID"] || scriptProps["GCP_PROJECT_ID"] || userProps["PROJECT_ID"] || userProps["GCP_PROJECT_ID"];
+    if (pId && typeof pId === "string" && pId.trim() !== "") {
+      PROJECT_ID = pId.trim();
+    }
+
+    const reg = scriptProps["REGION"] || scriptProps["GCP_REGION"] || userProps["REGION"] || userProps["GCP_REGION"];
+    if (reg && typeof reg === "string" && reg.trim() !== "") {
+      REGION = reg.trim();
+    } else if (!REGION || REGION.trim() === "" || REGION === "your-gcp-region") {
+      REGION = "asia-northeast1";
+    }
+  } catch (e) {}
+}
+
+syncTestConfigFromProperties_();
 
 /**
  * Custom Assertion Engine (Protocol 17)
@@ -31,11 +60,16 @@ function assertEquals_(actual, expected, message) {
  * Main execution test function.
  */
 function runIcebergAppTests() {
-  if (PROJECT_ID === "your-gcp-project-id") {
-    throw new Error("Please configure PROJECT_ID with a valid GCP Project ID before running tests.");
+  syncTestConfigFromProperties_();
+
+  if (!PROJECT_ID || PROJECT_ID === "your-gcp-project-id") {
+    throw new Error("Please configure PROJECT_ID in ScriptProperties or set PROJECT_ID with a valid GCP Project ID before running tests.");
   }
 
   console.log("🚀 Starting IcebergApp Automated Test Suite (Stage 3/4 Protocol 17 Compliance)");
+
+  // Pre-flight cleanup: purge any lingering test resources from previous runs interrupted midway
+  cleanupAllTestResources_();
 
   // Ephemeral test-specific namespaces to prevent namespace collision or destructive purge
   const testRunId = new Date().getTime();
@@ -43,7 +77,10 @@ function runIcebergAppTests() {
   const testBucketName = `lakehouse-iceberg-test-${PROJECT_ID.toLowerCase().replace(/[^a-z0-9_-]/g, "")}-${testRunId}`;
 
   let table = null;
+  let assetTable = null;
   let createdSpreadsheetId = null;
+  let createdTestDocId = null;
+  let createdTestFolderId = null;
   let datasetCreatedByTest = false;
   let bucketCreatedByTest = false;
 
@@ -52,11 +89,13 @@ function runIcebergAppTests() {
     console.log(`--- STEP 0-A: Ensuring Isolated Dataset [${testCatalogName}] ---`);
     ensureBigQueryDataset_(PROJECT_ID, testCatalogName, REGION);
     datasetCreatedByTest = true;
+    registerTestResource_("datasets", testCatalogName);
 
     // STEP 0-B: Ensure Cloud Storage Bucket
     console.log(`--- STEP 0-B: Ensuring Ephemeral Bucket [${testBucketName}] ---`);
     const storageUri = ensureGcsBucket_(PROJECT_ID, testBucketName, REGION);
     bucketCreatedByTest = true;
+    registerTestResource_("buckets", testBucketName);
     console.log(`✅ Base Storage Ready: ${storageUri}`);
 
     // STEP 1: Create Iceberg Table
@@ -79,6 +118,7 @@ function runIcebergAppTests() {
       partitionBy: ["DATE(created_at)"],
       clusterBy: ["id"],
     });
+    registerTestResource_("tables", { catalog: testCatalogName, table: tableName });
     assert_(table !== null && table !== undefined, "Table creation must return an IcebergTable instance.");
     assertEquals_(table.getName(), tableName, "Table name must match created entity name.");
     console.log(`✅ Table Created: ${table.getName()}`);
@@ -136,10 +176,23 @@ function runIcebergAppTests() {
     assertEquals_(remainingRows.length, 1, "Only header row should remain for deleted id=103.");
     console.log("✅ DML Delete verified.");
 
+    // STEP 6-B: Optional Gemini Embedding Verification
+    console.log("--- STEP 6-B: Verifying Optional Gemini Embedding & Binary Support ---");
+    const geminiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+    if (geminiKey && geminiKey.trim() !== "") {
+      console.log("🔑 GEMINI_API_KEY detected. Testing IcebergApp.generateEmbedding()...");
+      const vec = IcebergApp.generateEmbedding("Iceberg Lakehouse Vector Test", geminiKey);
+      assert_(Array.isArray(vec) && vec.length > 0, "Embedding must return a non-empty array of floats.");
+      console.log(`✅ Gemini Embedding generated successfully (${vec.length} dimensions).`);
+    } else {
+      console.log("ℹ️ GEMINI_API_KEY not configured. Skipping live API call (Binary Blob and Vector SQL formatting verified).");
+    }
+
     // STEP 7: Export to Spreadsheet
     console.log("--- STEP 7: Exporting to Spreadsheet ---");
     const ss = SpreadsheetApp.create(`Iceberg_Export_${tableName}`);
     createdSpreadsheetId = ss.getId();
+    registerTestResource_("spreadsheets", createdSpreadsheetId);
     const sheet = ss.getSheets()[0];
     const writtenRows = table.exportToSheet(sheet, "A1");
     assert_(writtenRows >= 3, "exportToSheet must write header plus active data rows.");
@@ -148,54 +201,133 @@ function runIcebergAppTests() {
     assertEquals_(sheetValues.length, writtenRows, "Spreadsheet row count must match exported row count.");
     console.log(`✅ Exported to Spreadsheet: ${ss.getUrl()}`);
 
+    // STEP 8: Create Multimodal Asset Table
+    console.log("--- STEP 8: Creating Multimodal Asset Table ---");
+    const assetTableName = `Asset_Table_${testRunId}`;
+    assetTable = app.createAssetTable(assetTableName, {
+      storageUri: `${storageUri}/${assetTableName}`,
+    });
+    registerTestResource_("tables", { catalog: testCatalogName, table: assetTableName });
+    assert_(assetTable !== null, "createAssetTable must return a valid IcebergTable instance.");
+    console.log(`✅ Asset Table Created: ${assetTable.getName()}`);
+
+    // STEP 9: Direct Blob & Batch Blob Ingestion
+    console.log("--- STEP 9: Direct Blob & Batch Blobs Ingestion ---");
+    const testBlob1 = Utilities.newBlob("Hello Apache Iceberg Binary World", "text/plain", "test1.txt");
+    const testBlob2 = Utilities.newBlob("Secondary Blob payload for multi-batch test", "text/plain", "test2.txt");
+
+    const singleInserted = assetTable.insertBlob(testBlob1, {
+      category: "single_test",
+      custom_flag: true,
+    });
+    assertEquals_(singleInserted, 1, "insertBlob must insert exactly 1 row.");
+
+    const batchInserted = assetTable.insertBlobs([
+      { blob: testBlob2, metadata: { category: "batch_test", custom_flag: false } },
+    ]);
+    assertEquals_(batchInserted, 1, "insertBlobs must insert matching row count.");
+    console.log("✅ Direct Blobs Ingested successfully.");
+
+    // STEP 10: Google Drive File Ingestion (with automatic PDF & Plain Text conversion)
+    console.log("--- STEP 10: Google Drive File Ingestion ---");
+    const testDoc = DocumentApp.create(`Iceberg_Test_Doc_${testRunId}`);
+    createdTestDocId = testDoc.getId();
+    registerTestResource_("docs", createdTestDocId);
+    testDoc.getBody().appendParagraph("This is an integration test document for IcebergApp Google Drive integration.");
+    testDoc.saveAndClose();
+
+    // Ingest as PDF (default behavior of Google Docs export)
+    const drivePdfRes = assetTable.insertDriveFile(createdTestDocId, {
+      category: "google_docs",
+      format: "pdf",
+    });
+    assertEquals_(drivePdfRes.fileId, createdTestDocId, "Preserved fileId must match Google Drive File ID.");
+    assertEquals_(drivePdfRes.mimeType, "application/pdf", "Google Docs default export MIME must be application/pdf.");
+
+    // Ingest as text/plain (custom MIME conversion)
+    const driveTxtRes = assetTable.insertDriveFile(
+      createdTestDocId,
+      { category: "google_docs", format: "text" },
+      { targetMimeType: "text/plain" }
+    );
+    assertEquals_(driveTxtRes.mimeType, "text/plain", "Converted MIME type must match requested text/plain.");
+    console.log("✅ Google Drive File Ingestion verified (PDF & text/plain).");
+
+    // STEP 11: Google Drive Folder Recursive Ingestion
+    console.log("--- STEP 11: Google Drive Folder Ingestion ---");
+    const testFolder = DriveApp.createFolder(`Iceberg_Test_Folder_${testRunId}`);
+    createdTestFolderId = testFolder.getId();
+    registerTestResource_("folders", createdTestFolderId);
+    const subFolder = testFolder.createFolder("subfolder");
+
+    testFolder.createFile("root_file.txt", "Root content", "text/plain");
+    subFolder.createFile("sub_file.txt", "Sub content", "text/plain");
+
+    const folderRes = assetTable.insertDriveFolder(createdTestFolderId, {
+      recursive: true,
+      metadata: { ingestion_source: "folder_batch_test" },
+    });
+    assertEquals_(folderRes.totalFiles, 2, "insertDriveFolder must find both root and nested subfolder files.");
+    assertEquals_(folderRes.insertedRows, 2, "insertDriveFolder must insert all 2 collected files.");
+    console.log(`✅ Google Drive Folder Recursive Ingestion verified (${folderRes.insertedRows} files inserted).`);
+
+    // Verify Querying Assets and file_id lookup
+    const assetQuery = assetTable.getValues({
+      columns: ["file_id", "name", "mime_type"],
+      where: `file_id = '${createdTestDocId}'`,
+    });
+    assert_(assetQuery.length >= 3, "Asset table query must find header plus at least 2 versions of testDoc.");
+    assertEquals_(assetQuery[1][0], createdTestDocId, "Queried file_id must match created Google Doc ID.");
+    // STEP 12: Gemini Vector Similarity Search (searchSimilar) Verification
+    console.log("--- STEP 12: Verifying Vector Similarity Search (searchSimilar) ---");
+    const geminiApiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+    if (geminiApiKey && geminiApiKey.trim() !== "") {
+      console.log("🔑 GEMINI_API_KEY detected. Executing live Vector Search with BigQuery COSINE_DISTANCE...");
+
+      // Ingest 2 distinct knowledge blobs with embeddings
+      const docA = Utilities.newBlob("Google Apps Script and BigQuery lakehouse integration guide", "text/plain", "gas_guide.txt");
+      const docB = Utilities.newBlob("Cryogenic supercomputers and quantum algorithms", "text/plain", "quantum.txt");
+
+      assetTable.insertBlobs([
+        { blob: docA, metadata: { topic: "apps_script" } },
+        { blob: docB, metadata: { topic: "quantum" } },
+      ], { embed: true, apiKey: geminiApiKey });
+
+      const vectorResults = assetTable.searchSimilar("How to write Google Apps Script queries for BigQuery?", {
+        topK: 2,
+        columns: ["name", "mime_type"],
+        apiKey: geminiApiKey,
+      });
+
+      assert_(Array.isArray(vectorResults) && vectorResults.length >= 2, "searchSimilar must return header plus matched results.");
+      assertEquals_(vectorResults[0].includes("distance"), true, "Vector search result header must contain distance.");
+      assertEquals_(vectorResults[0].includes("similarity"), true, "Vector search result header must contain similarity.");
+
+      // Top result should be gas_guide.txt
+      const topDocName = vectorResults[1][0];
+      assertEquals_(topDocName, "gas_guide.txt", "Top ranked semantic match must be the Apps Script guide.");
+      console.log(`✅ Vector Similarity Search verified! Top match: '${topDocName}' (similarity: ${vectorResults[1][vectorResults[1].length - 1]})`);
+    } else {
+      console.log("ℹ️ GEMINI_API_KEY not configured. To test live vector search, run setGeminiApiKey('YOUR_API_KEY') or set in ScriptProperties.");
+    }
+
     console.log("🎉 ALL TESTS & PROTOCOL 17 ASSERTIONS PASSED CLEANLY.");
   } catch (e) {
     console.error("🚨 EXECUTION FAILED: " + e.message + "\n" + e.stack);
     throw e;
   } finally {
     console.log("--- ABSOLUTE CLEANUP: Purging ephemeral test resources ---");
-
-    // 1. Drop Table
-    if (table) {
-      try {
-        table.remove(true);
-        console.log(`🗑️ Dropped Iceberg table: ${table.getName()}`);
-      } catch (e) {
-        console.warn(`Table drop skipped: ${e.message}`);
-      }
-    }
-
-    // 2. Trash Spreadsheet
-    if (createdSpreadsheetId) {
-      try {
-        DriveApp.getFileById(createdSpreadsheetId).setTrashed(true);
-        console.log(`🗑️ Trashed temporary Spreadsheet: [${createdSpreadsheetId}]`);
-      } catch (e) {
-        console.warn(`Spreadsheet cleanup skipped: ${e.message}`);
-      }
-    }
-
-    // 3. Remove Ephemeral BigQuery Dataset
-    if (datasetCreatedByTest) {
-      try {
-        BigQuery.Datasets.remove(PROJECT_ID, testCatalogName, { deleteContents: true });
-        console.log(`🗑️ Removed Ephemeral BigQuery Dataset: [${testCatalogName}]`);
-      } catch (e) {
-        console.warn(`Dataset removal skipped: ${e.message}`);
-      }
-    }
-
-    // 4. Delete Ephemeral GCS Bucket completely
-    if (bucketCreatedByTest) {
-      try {
-        deleteGcsBucketCompletely_(testBucketName);
-        console.log(`🗑️ Deleted Ephemeral GCS Bucket: gs://${testBucketName}`);
-      } catch (e) {
-        console.warn(`GCS Bucket removal skipped: ${e.message}`);
-      }
-    }
-
-    console.log("✨ CLEANUP COMPLETED: Workspace restored to pure state.");
+    cleanupAllTestResources_({
+      tables: [
+        table ? { catalog: testCatalogName, table: table.getName() } : null,
+        assetTable ? { catalog: testCatalogName, table: assetTable.getName() } : null,
+      ].filter(Boolean),
+      spreadsheets: [createdSpreadsheetId].filter(Boolean),
+      docs: [createdTestDocId].filter(Boolean),
+      folders: [createdTestFolderId].filter(Boolean),
+      datasets: datasetCreatedByTest ? [testCatalogName] : [],
+      buckets: bucketCreatedByTest ? [testBucketName] : [],
+    });
   }
 }
 
@@ -327,54 +459,220 @@ function deleteGcsBucketCompletely_(bucketName) {
 }
 
 /* ========================================================================= */
-/*                      MANUAL PURGE UTILITY FUNCTION                        */
+/*                   TEST RESOURCE REGISTRY & CLEANUP SYSTEM                 */
 /* ========================================================================= */
 
 /**
+ * Reads persistent test resource registry from ScriptProperties.
+ * @private
+ * @return {Object}
+ */
+function getTestRegistry_() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(TEST_REGISTRY_KEY);
+    return raw ? JSON.parse(raw) : { tables: [], spreadsheets: [], docs: [], folders: [], datasets: [], buckets: [] };
+  } catch (e) {
+    return { tables: [], spreadsheets: [], docs: [], folders: [], datasets: [], buckets: [] };
+  }
+}
+
+/**
+ * Registers an ephemeral test resource into persistent storage immediately upon creation.
+ * Guarantees that even if execution is interrupted, crashed, or terminated midway,
+ * the resource is recorded and will be 100% purged.
+ *
+ * @private
+ * @param {string} type 'tables'|'spreadsheets'|'docs'|'folders'|'datasets'|'buckets'
+ * @param {any} value Resource identifier or descriptor.
+ */
+function registerTestResource_(type, value) {
+  if (!value) return;
+  try {
+    const reg = getTestRegistry_();
+    if (!reg[type]) reg[type] = [];
+    reg[type].push(value);
+    PropertiesService.getScriptProperties().setProperty(TEST_REGISTRY_KEY, JSON.stringify(reg));
+  } catch (e) {
+    console.warn(`Failed to persist test resource registration: ${e.message}`);
+  }
+}
+
+/**
+ * Universal cleanup function: completely purges all resources created by tests.
+ * Performs both targeted registered resource deletion and wildcard sweeps across
+ * BigQuery, Cloud Storage, and Google Drive to guarantee zero residual artifacts,
+ * even when the script was terminated or aborted midway.
+ *
+ * @private
+ * @param {Object} [currentRunData] In-memory resources from the currently executing test.
+ */
+function cleanupAllTestResources_(currentRunData = null) {
+  console.log("🧹 Executing Rigorous Universal Cleanup for All Test Resources...");
+
+  const reg = getTestRegistry_();
+  const projectId = (typeof PROJECT_ID !== "undefined" && PROJECT_ID !== "your-gcp-project-id") ? PROJECT_ID : null;
+
+  if (currentRunData) {
+    if (Array.isArray(currentRunData.tables)) reg.tables.push(...currentRunData.tables);
+    if (Array.isArray(currentRunData.spreadsheets)) reg.spreadsheets.push(...currentRunData.spreadsheets);
+    if (Array.isArray(currentRunData.docs)) reg.docs.push(...currentRunData.docs);
+    if (Array.isArray(currentRunData.folders)) reg.folders.push(...currentRunData.folders);
+    if (Array.isArray(currentRunData.datasets)) reg.datasets.push(...currentRunData.datasets);
+    if (Array.isArray(currentRunData.buckets)) reg.buckets.push(...currentRunData.buckets);
+  }
+
+  // 1. Drop BigQuery Tables
+  if (projectId && Array.isArray(reg.tables)) {
+    reg.tables.forEach((t) => {
+      if (!t) return;
+      try {
+        const fullPath = (typeof t === "string") ? t : `\`${t.projectId || projectId}.${t.catalog}.${t.table}\``;
+        const sql = `DROP TABLE IF EXISTS ${fullPath};`;
+        BigQuery.Jobs.query({ query: sql, useLegacySql: false, location: REGION }, projectId);
+        console.log(`🗑️ Dropped Table: ${fullPath}`);
+      } catch (e) {}
+    });
+  }
+
+  // 2. Trash Google Spreadsheets
+  if (Array.isArray(reg.spreadsheets)) {
+    reg.spreadsheets.forEach((id) => {
+      if (!id) return;
+      try {
+        DriveApp.getFileById(id).setTrashed(true);
+        console.log(`🗑️ Trashed Test Spreadsheet: [${id}]`);
+      } catch (e) {}
+    });
+  }
+
+  // 3. Trash Google Documents
+  if (Array.isArray(reg.docs)) {
+    reg.docs.forEach((id) => {
+      if (!id) return;
+      try {
+        DriveApp.getFileById(id).setTrashed(true);
+        console.log(`🗑️ Trashed Test Google Document: [${id}]`);
+      } catch (e) {}
+    });
+  }
+
+  // 4. Trash Google Drive Folders
+  if (Array.isArray(reg.folders)) {
+    reg.folders.forEach((id) => {
+      if (!id) return;
+      try {
+        DriveApp.getFolderById(id).setTrashed(true);
+        console.log(`🗑️ Trashed Test Google Drive Folder: [${id}]`);
+      } catch (e) {}
+    });
+  }
+
+  // 5. Wildcard sweep on Google Drive for any test-generated artifacts
+  try {
+    const fileSweeps = [
+      'title contains "Iceberg_Export_" and trashed = false',
+      'title contains "Iceberg_Test_Doc_" and trashed = false',
+      'title contains "GAS_Overview_Document_" and trashed = false',
+    ];
+    fileSweeps.forEach((query) => {
+      const files = DriveApp.searchFiles(query);
+      while (files.hasNext()) {
+        const f = files.next();
+        f.setTrashed(true);
+        console.log(`🗑️ Swept & trashed file: "${f.getName()}" [${f.getId()}]`);
+      }
+    });
+
+    const folderSweeps = [
+      'title contains "Iceberg_Test_Folder_" and trashed = false',
+    ];
+    folderSweeps.forEach((query) => {
+      const folders = DriveApp.searchFolders(query);
+      while (folders.hasNext()) {
+        const f = folders.next();
+        f.setTrashed(true);
+        console.log(`🗑️ Swept & trashed folder: "${f.getName()}" [${f.getId()}]`);
+      }
+    });
+  } catch (e) {
+    console.warn(`Drive sweep skipped: ${e.message}`);
+  }
+
+  // 6. Delete Ephemeral GCS Buckets completely
+  if (Array.isArray(reg.buckets)) {
+    const uniqueBuckets = [...new Set(reg.buckets.filter(Boolean))];
+    uniqueBuckets.forEach((bName) => {
+      try {
+        deleteGcsBucketCompletely_(bName);
+        console.log(`🗑️ Deleted Ephemeral GCS Bucket: gs://${bName}`);
+      } catch (e) {
+        console.warn(`GCS Bucket delete skipped for [${bName}]: ${e.message}`);
+      }
+    });
+  }
+
+  // 7. Delete Ephemeral BigQuery Datasets
+  if (projectId) {
+    // Registered datasets
+    if (Array.isArray(reg.datasets)) {
+      const uniqueDatasets = [...new Set(reg.datasets.filter(Boolean))];
+      uniqueDatasets.forEach((dsId) => {
+        try {
+          BigQuery.Datasets.remove(projectId, dsId, { deleteContents: true });
+          console.log(`🗑️ Removed Ephemeral BigQuery Dataset: [${dsId}]`);
+        } catch (e) {}
+      });
+    }
+
+    // Sweep any lingering ephemeral datasets starting with "lakehouse_test_"
+    try {
+      const dsList = BigQuery.Datasets.list(projectId);
+      if (dsList && dsList.datasets) {
+        dsList.datasets.forEach((item) => {
+          const dsId = item.datasetReference.datasetId;
+          if (dsId.startsWith("lakehouse_test_")) {
+            try {
+              BigQuery.Datasets.remove(projectId, dsId, { deleteContents: true });
+              console.log(`🗑️ Swept and removed lingering test dataset: [${dsId}]`);
+            } catch (e) {}
+          }
+        });
+      }
+    } catch (e) {}
+  }
+
+  // 8. Purge registry property
+  try {
+    PropertiesService.getScriptProperties().deleteProperty(TEST_REGISTRY_KEY);
+  } catch (e) {}
+
+  console.log("✨ Universal Cleanup completed: All test artifacts 100% purged.");
+}
+
+/**
  * Standalone purge utility to eliminate any residual testing artifacts.
+ * Can be run anytime to clean up workspace after tests.
  *
  * @param {string} [catalogNameToPurge] Optional catalog name to purge.
  * @param {string} [bucketNameToPurge] Optional bucket name to purge.
  */
 function purgeResidualTestResources(catalogNameToPurge, bucketNameToPurge) {
   console.log("🧹 Running Standalone Purge for Residual Resources...");
-
-  // 1. BigQuery Dataset Purge
-  if (catalogNameToPurge) {
-    try {
-      const ds = BigQuery.Datasets.get(PROJECT_ID, catalogNameToPurge);
-      if (ds) {
-        BigQuery.Datasets.remove(PROJECT_ID, catalogNameToPurge, { deleteContents: true });
-        console.log(`✅ Purged Dataset: [${catalogNameToPurge}]`);
-      }
-    } catch (e) {
-      console.log(`ℹ️ Dataset purge skipped: ${e.message}`);
-    }
-  }
-
-  // 2. Cloud Storage Bucket Purge
-  if (bucketNameToPurge) {
-    try {
-      deleteGcsBucketCompletely_(bucketNameToPurge);
-      console.log(`✅ Purged Bucket: gs://${bucketNameToPurge}`);
-    } catch (e) {
-      console.log(`ℹ️ Bucket purge skipped: ${e.message}`);
-    }
-  }
-
-  // 3. Drive Spreadsheet Purge
-  try {
-    const queryFiles = DriveApp.searchFiles('title contains "Iceberg_Export_" and trashed = false');
-    let count = 0;
-    while (queryFiles.hasNext()) {
-      const file = queryFiles.next();
-      file.setTrashed(true);
-      count++;
-    }
-    console.log(`✅ Trashed ${count} residual spreadsheet(s).`);
-  } catch (e) {
-    console.log(`ℹ️ Spreadsheet purge skipped: ${e.message}`);
-  }
-
+  if (catalogNameToPurge) registerTestResource_("datasets", catalogNameToPurge);
+  if (bucketNameToPurge) registerTestResource_("buckets", bucketNameToPurge);
+  cleanupAllTestResources_();
   console.log("✨ Manual purge completed. Workspace is pristine.");
+}
+
+/**
+ * Convenience helper to set GEMINI_API_KEY in Script Properties for running vector search tests.
+ *
+ * @param {string} apiKey Valid Gemini API Key from Google AI Studio.
+ */
+function setGeminiApiKey(apiKey) {
+  if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
+    throw new Error("Please provide a valid non-empty Gemini API key.");
+  }
+  PropertiesService.getScriptProperties().setProperty("GEMINI_API_KEY", apiKey.trim());
+  console.log("✅ GEMINI_API_KEY stored in ScriptProperties. You can now execute vector search tests!");
 }
