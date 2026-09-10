@@ -8,6 +8,21 @@
   <sub>A Google Apps Script library for managing Google Cloud Lakehouse for Apache Iceberg.</sub>
 </p>
 
+## Published articles
+
+- Unifying Google Workspace and Apache Iceberg: Serverless Lakehouse Management
+  - Medium: [https://medium.com/google-cloud/unifying-google-workspace-and-apache-iceberg-serverless-lakehouse-management-94a6cb43614c](https://medium.com/google-cloud/unifying-google-workspace-and-apache-iceberg-serverless-lakehouse-management-94a6cb43614c)
+  - DEV.to: [https://dev.to/gde/unifying-google-workspace-and-apache-iceberg-serverless-lakehouse-management-ep3](https://dev.to/gde/unifying-google-workspace-and-apache-iceberg-serverless-lakehouse-management-ep3)
+  - LinkedIn: [https://www.linkedin.com/posts/tanaike_unifying-google-workspace-and-apache-iceberg-activity-7502271066187370496-u3xm?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGPNwa0BAjsU3wvkp7Mhq6PmtDubnJQpAw8](https://www.linkedin.com/posts/tanaike_unifying-google-workspace-and-apache-iceberg-activity-7502271066187370496-u3xm?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGPNwa0BAjsU3wvkp7Mhq6PmtDubnJQpAw8)
+- Serverless Multimodal Vector Search on Apache Iceberg via Google Apps Script
+  - Medium: [https://medium.com/google-cloud/serverless-multimodal-vector-search-on-apache-iceberg-via-google-apps-script-54726e0d6c11](https://medium.com/google-cloud/serverless-multimodal-vector-search-on-apache-iceberg-via-google-apps-script-54726e0d6c11)
+  - DEV.to: [https://dev.to/gde/serverless-multimodal-vector-search-on-apache-iceberg-via-google-apps-script-4fg](https://dev.to/gde/serverless-multimodal-vector-search-on-apache-iceberg-via-google-apps-script-4fg)
+  - LinkedIn: [https://www.linkedin.com/posts/tanaike_serverless-multimodal-vector-search-on-apache-activity-7502958323198025728-WDyI?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGPNwa0BAjsU3wvkp7Mhq6PmtDubnJQpAw8](https://www.linkedin.com/posts/tanaike_serverless-multimodal-vector-search-on-apache-activity-7502958323198025728-WDyI?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGPNwa0BAjsU3wvkp7Mhq6PmtDubnJQpAw8)
+- Bidirectional Writeback for Apache Iceberg via Google Sheets: Serverless Lakehouse Console
+  - Medium: [https://medium.com/google-cloud/bidirectional-writeback-for-apache-iceberg-via-google-sheets-serverless-lakehouse-console-94be82d07264](https://medium.com/google-cloud/bidirectional-writeback-for-apache-iceberg-via-google-sheets-serverless-lakehouse-console-94be82d07264)
+  - DEV.to: [https://dev.to/gde/bidirectional-writeback-for-apache-iceberg-via-google-sheets-serverless-lakehouse-console-14ic](https://dev.to/gde/bidirectional-writeback-for-apache-iceberg-via-google-sheets-serverless-lakehouse-console-14ic)
+  - LinkedIn: [https://www.linkedin.com/posts/tanaike_bidirectional-writeback-for-apache-iceberg-activity-7502981930804490240-yrOc?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGPNwa0BAjsU3wvkp7Mhq6PmtDubnJQpAw8](https://www.linkedin.com/posts/tanaike_bidirectional-writeback-for-apache-iceberg-activity-7502981930804490240-yrOc?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGPNwa0BAjsU3wvkp7Mhq6PmtDubnJQpAw8)
+
 ---
 
 ## Overview
@@ -28,7 +43,8 @@ By decoupling storage from compute, Google Cloud's Lakehouse architecture enable
 - **Autonomous Catalog Provisioning & Dynamic Schema Adaptation**: `ensureCatalog()` automatically verifies and provisions missing BigQuery catalog datasets. Ingestion methods dynamically inspect table schema, mapping matching columns and bundling arbitrary custom metadata into JSON strings without SQL column-mismatch errors.
 - **Interruption-Tolerant Zero-Residue Lifecycle Engine**: Dual-layer persistent resource registry (`ScriptProperties`), pre-flight sweeping, and `finally` blocks guarantee 100% complete cleanup of all ephemeral tables, datasets, buckets, and files—even when executions are interrupted, timed out, or aborted midway.
 
-> **Published Technical Articles (Dev.to)**:  
+> **Published Technical Articles (Dev.to)**:
+>
 > 1. [Unifying Google Workspace and Apache Iceberg: Serverless Lakehouse Management](https://dev.to/gde/unifying-google-workspace-and-apache-iceberg-serverless-lakehouse-management-ep3)
 > 2. [Serverless Multimodal Vector Search on Apache Iceberg via Google Apps Script](https://dev.to/gde/serverless-multimodal-vector-search-on-apache-iceberg-via-google-apps-script-4fg)
 > 3. [Bidirectional Writeback for Apache Iceberg via Google Sheets: Serverless Lakehouse Console](applications/writeback-sheets-ui)
@@ -59,13 +75,13 @@ IcebergApp uses the **BigQuery Advanced Service** as an accelerated query engine
 
 Google Sheets is the most intuitive and widely used frontline data interface. However, when used as an analytical data store or high-volume operational backend, developers invariably run into severe architectural limits:
 
-| Operation | Google Sheets / GAS Bottlenecks | IcebergApp Solution |
-| :--- | :--- | :--- |
-| **Capacity** | **10-Million Cell Ceiling**: File bloat, slow loads, quota failures. | **Infinite Petabyte Lakehouse**: Parquet data stored on durable Cloud Storage. |
-| **Search / Query** | **V8 Memory Overload & 6-Min Timeout**: Pulling massive ranges via `getValues()` to loop in V8 exhausts RAM and triggers timeouts. | **Predicate Pushdown (1–2s)**: Metadata Min/Max evaluation skips irrelevant files; returns only filtered rows. |
-| **Insert / Append** | **Formula Recalculation Freeze**: Batch `appendRow()` / `setValues()` forces full workbook formula and revision recalculations. | **Atomic Parquet Streaming**: Direct micro-batch streaming via `table.insertValues()` with $O(1)$ client cost. |
-| **Update (In-Place)**| **Full-Grid Rewrites**: Searching rows in memory and overwriting ranges causes severe RPC latency. | **Distributed SQL DML**: In-place `table.update(...)` executed directly on storage without cell-by-cell iteration. |
-| **Delete (Rows)** | **Fatal `deleteRow()` Loop**: Deleting rows shifts the entire grid upward per call, freezing scripts or timing out. | **Metadata-Level Atomic Delete**: `table.deleteRows(...)` purges records instantaneously via metadata commits. |
+| Operation             | Google Sheets / GAS Bottlenecks                                                                                                    | IcebergApp Solution                                                                                                |
+| :-------------------- | :--------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- |
+| **Capacity**          | **10-Million Cell Ceiling**: File bloat, slow loads, quota failures.                                                               | **Infinite Petabyte Lakehouse**: Parquet data stored on durable Cloud Storage.                                     |
+| **Search / Query**    | **V8 Memory Overload & 6-Min Timeout**: Pulling massive ranges via `getValues()` to loop in V8 exhausts RAM and triggers timeouts. | **Predicate Pushdown (1–2s)**: Metadata Min/Max evaluation skips irrelevant files; returns only filtered rows.     |
+| **Insert / Append**   | **Formula Recalculation Freeze**: Batch `appendRow()` / `setValues()` forces full workbook formula and revision recalculations.    | **Atomic Parquet Streaming**: Direct micro-batch streaming via `table.insertValues()` with $O(1)$ client cost.     |
+| **Update (In-Place)** | **Full-Grid Rewrites**: Searching rows in memory and overwriting ranges causes severe RPC latency.                                 | **Distributed SQL DML**: In-place `table.update(...)` executed directly on storage without cell-by-cell iteration. |
+| **Delete (Rows)**     | **Fatal `deleteRow()` Loop**: Deleting rows shifts the entire grid upward per call, freezing scripts or timing out.                | **Metadata-Level Atomic Delete**: `table.deleteRows(...)` purges records instantaneously via metadata commits.     |
 
 By maintaining Google Sheets as an agile, lightweight presentation surface and delegating storage and heavy compute to Apache Iceberg and BigQuery, IcebergApp completely eliminates these performance barriers.
 
@@ -103,6 +119,7 @@ To use this library, you must link your Google Apps Script project to a standard
 Enable the manifest editor by checking **Show "appsscript.json" manifest file in editor** under **Project Settings**. Update your `appsscript.json` with the required configuration.
 
 #### Standard Consumer Profile
+
 ```json
 {
   "timeZone": "Asia/Tokyo",
@@ -125,7 +142,9 @@ Enable the manifest editor by checking **Show "appsscript.json" manifest file in
 ```
 
 #### Test Suite & Sample Scenarios Runner Profile (`src/test.js`, `src/samples.js`)
+
 When running the automated lifecycle test suite (`src/test.js`) or sample scenarios (`src/samples.js`), additional OAuth scopes are required:
+
 - `https://www.googleapis.com/auth/documents`: **Required for creating and exporting Google Documents** in `runAllSamples()` / `sample1_importGoogleDocToIceberg_()` and Test Step 10.
 - `https://www.googleapis.com/auth/drive`: Required for Google Drive File/Folder traversal and lifecycle cleanup.
 - `https://www.googleapis.com/auth/devstorage.full_control`: Required for autonomous GCS Bucket provisioning and purge.
@@ -174,34 +193,34 @@ You can install IcebergApp using either of the following methods:
 
 ### `IcebergApp`
 
-| Method | Return | Description |
-| :--- | :--- | :--- |
-| `openByCatalog(projectId, catalogName, location)` | `IcebergApp` | Initializes the IcebergApp instance for a specific catalog/dataset. |
-| `create(tableName, options)` | `IcebergTable` | Creates a new Apache Iceberg / BigLake table. |
-| `createAssetTable(tableName, options)` | `IcebergTable` | Creates an asset table pre-configured for binary Blobs and Drive files (`id`, `file_id`, `name`, `mime_type`, `size`, `data`, `embedding`, `updated_at`). |
-| `getTables()` | `Array<IcebergTable>` | Lists all tables within the catalog. |
-| `getTableByName(tableName)` | `IcebergTable \| null` | Retrieves an IcebergTable instance by name from `INFORMATION_SCHEMA`. |
-| `getTable(tableName)` | `IcebergTable` | Directly returns an IcebergTable instance without querying `INFORMATION_SCHEMA`. |
+| Method                                            | Return                 | Description                                                                                                                                               |
+| :------------------------------------------------ | :--------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openByCatalog(projectId, catalogName, location)` | `IcebergApp`           | Initializes the IcebergApp instance for a specific catalog/dataset.                                                                                       |
+| `create(tableName, options)`                      | `IcebergTable`         | Creates a new Apache Iceberg / BigLake table.                                                                                                             |
+| `createAssetTable(tableName, options)`            | `IcebergTable`         | Creates an asset table pre-configured for binary Blobs and Drive files (`id`, `file_id`, `name`, `mime_type`, `size`, `data`, `embedding`, `updated_at`). |
+| `getTables()`                                     | `Array<IcebergTable>`  | Lists all tables within the catalog.                                                                                                                      |
+| `getTableByName(tableName)`                       | `IcebergTable \| null` | Retrieves an IcebergTable instance by name from `INFORMATION_SCHEMA`.                                                                                     |
+| `getTable(tableName)`                             | `IcebergTable`         | Directly returns an IcebergTable instance without querying `INFORMATION_SCHEMA`.                                                                          |
 
 ### `IcebergTable`
 
-| Method | Return | Description |
-| :--- | :--- | :--- |
-| `getName()` | `string` | Returns the table name. |
-| `getFullPath()` | `string` | Returns the fully qualified table path for SQL statements. |
-| `asOf(timestamp)` | `IcebergTable` | Sets snapshot time for Time Travel queries (method chaining). |
-| `resetSnapshot()` | `IcebergTable` | Clears Time Travel snapshot constraints. |
-| `getValues(filter)` | `Array<Array<any>>` | Queries rows matching conditions and returns a 2D array (headers included). Supports `{ columns, where, orderBy, limit }`. |
-| `insertValues(values)` | `number` | Inserts a 2D array of values (first row as column headers). |
-| `insertBlob(blob, metadata, options)` | `number` | Inserts a single Google Apps Script binary `Blob` with metadata and optional Gemini embedding. |
-| `insertBlobs(blobEntries, options)` | `number` | Batch inserts multiple `Blob` objects in a single atomic query. |
-| `insertDriveFile(fileId, metadata, options)` | `Object` | Ingests a Google Drive file by ID. Preserves `file_id`. Supports automatic PDF conversion (default) or custom `targetMimeType`. |
-| `insertDriveFolder(folderId, options)` | `Object` | Recursively collects all files from a Google Drive folder and batch-inserts them into the Iceberg table. |
-| `searchSimilar(query, options)` | `Array<Array<any>>` | Performs vector similarity search using Gemini Embeddings and BigQuery `COSINE_DISTANCE`. |
-| `update(setClause, whereClause)` | `string` | Performs an atomic DML update on matching rows. |
-| `deleteRows(whereClause)` | `string` | Deletes rows satisfying the specified predicate. |
-| `exportToSheet(sheet, startA1, filter)` | `number` | Directly exports query results into a target Google Spreadsheet sheet. Supports `{ columns, where, orderBy, limit }`. |
-| `remove(ifExists)` | `string` | Drops the table entity from the catalog. |
+| Method                                       | Return              | Description                                                                                                                     |
+| :------------------------------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------------------ |
+| `getName()`                                  | `string`            | Returns the table name.                                                                                                         |
+| `getFullPath()`                              | `string`            | Returns the fully qualified table path for SQL statements.                                                                      |
+| `asOf(timestamp)`                            | `IcebergTable`      | Sets snapshot time for Time Travel queries (method chaining).                                                                   |
+| `resetSnapshot()`                            | `IcebergTable`      | Clears Time Travel snapshot constraints.                                                                                        |
+| `getValues(filter)`                          | `Array<Array<any>>` | Queries rows matching conditions and returns a 2D array (headers included). Supports `{ columns, where, orderBy, limit }`.      |
+| `insertValues(values)`                       | `number`            | Inserts a 2D array of values (first row as column headers).                                                                     |
+| `insertBlob(blob, metadata, options)`        | `number`            | Inserts a single Google Apps Script binary `Blob` with metadata and optional Gemini embedding.                                  |
+| `insertBlobs(blobEntries, options)`          | `number`            | Batch inserts multiple `Blob` objects in a single atomic query.                                                                 |
+| `insertDriveFile(fileId, metadata, options)` | `Object`            | Ingests a Google Drive file by ID. Preserves `file_id`. Supports automatic PDF conversion (default) or custom `targetMimeType`. |
+| `insertDriveFolder(folderId, options)`       | `Object`            | Recursively collects all files from a Google Drive folder and batch-inserts them into the Iceberg table.                        |
+| `searchSimilar(query, options)`              | `Array<Array<any>>` | Performs vector similarity search using Gemini Embeddings and BigQuery `COSINE_DISTANCE`.                                       |
+| `update(setClause, whereClause)`             | `string`            | Performs an atomic DML update on matching rows.                                                                                 |
+| `deleteRows(whereClause)`                    | `string`            | Deletes rows satisfying the specified predicate.                                                                                |
+| `exportToSheet(sheet, startA1, filter)`      | `number`            | Directly exports query results into a target Google Spreadsheet sheet. Supports `{ columns, where, orderBy, limit }`.           |
+| `remove(ifExists)`                           | `string`            | Drops the table entity from the catalog.                                                                                        |
 
 ---
 
@@ -318,9 +337,13 @@ assetTable.insertDriveFile("DRIVE_FILE_ID", {
 });
 
 // 3. Ingest Google Drive File with custom MIME conversion (e.g. Doc -> text/plain via DocumentApp)
-assetTable.insertDriveFile("DRIVE_FILE_ID", { category: "raw_text" }, {
-  targetMimeType: "text/plain",
-});
+assetTable.insertDriveFile(
+  "DRIVE_FILE_ID",
+  { category: "raw_text" },
+  {
+    targetMimeType: "text/plain",
+  },
+);
 
 // 4. Ingest entire Google Drive Folder recursively
 assetTable.insertDriveFolder("DRIVE_FOLDER_ID", {
@@ -338,10 +361,13 @@ assetTable.insertBlob(blob, {
 });
 
 // 6. Natural Language Vector Similarity Search (using GEMINI_API_KEY & COSINE_DISTANCE)
-const matches = assetTable.searchSimilar("How to build serverless lakehouses with Apps Script?", {
-  topK: 5,
-  columns: ["id", "file_id", "name", "mime_type"]
-});
+const matches = assetTable.searchSimilar(
+  "How to build serverless lakehouses with Apps Script?",
+  {
+    topK: 5,
+    columns: ["id", "file_id", "name", "mime_type"],
+  },
+);
 console.log(matches);
 // Returns 2D array including distance and similarity columns, ranked by semantic relevance
 ```
@@ -357,26 +383,42 @@ For large binary assets (high-resolution images, multi-page PDFs, audio, archive
 ```javascript
 // 1. Upload directly to Google Drive via Drive API v3 multipart/form-data and register in Iceberg
 const largePdfBlob = DriveApp.getFileById("LARGE_DOC_ID").getBlob();
-const driveUploadRes = assetTable.uploadAsset(largePdfBlob, {
-  category: "enterprise_archives",
-  confidentiality: "internal",
-}, { destination: "drive" });
+const driveUploadRes = assetTable.uploadAsset(
+  largePdfBlob,
+  {
+    category: "enterprise_archives",
+    confidentiality: "internal",
+  },
+  { destination: "drive" },
+);
 
-console.log(`Uploaded to Drive: ${driveUploadRes.uri} (File ID: ${driveUploadRes.fileId}, Size: ${driveUploadRes.size} bytes)`);
+console.log(
+  `Uploaded to Drive: ${driveUploadRes.uri} (File ID: ${driveUploadRes.fileId}, Size: ${driveUploadRes.size} bytes)`,
+);
 
 // 2. Upload directly to Cloud Storage (GCS) and link with Iceberg Lakehouse
-const gcsUploadRes = assetTable.uploadAsset(largePdfBlob, {
-  category: "lakehouse_raw_media",
-}, {
-  destination: "storage",
-  storageUri: "gs://your-bucket-name/iceberg_assets"
-});
+const gcsUploadRes = assetTable.uploadAsset(
+  largePdfBlob,
+  {
+    category: "lakehouse_raw_media",
+  },
+  {
+    destination: "storage",
+    storageUri: "gs://your-bucket-name/iceberg_assets",
+  },
+);
 
 console.log(`Uploaded to GCS: ${gcsUploadRes.uri}`);
 
 // 3. Standalone utility helpers
-const driveFile = IcebergApp.uploadToDrive(largePdfBlob, { description: "Archived report" });
-const gcsObject = IcebergApp.uploadToStorage(largePdfBlob, "your-bucket-name", "reports/q3_report.pdf");
+const driveFile = IcebergApp.uploadToDrive(largePdfBlob, {
+  description: "Archived report",
+});
+const gcsObject = IcebergApp.uploadToStorage(
+  largePdfBlob,
+  "your-bucket-name",
+  "reports/q3_report.pdf",
+);
 ```
 
 ### 9. Agentic AI Integration via Model Context Protocol (MCP) & [GASADK](https://github.com/tanaikech/adk-gas)
@@ -384,7 +426,7 @@ const gcsObject = IcebergApp.uploadToStorage(largePdfBlob, "your-bucket-name", "
 IcebergApp can be effortlessly exposed as deterministic MCP tools hosted directly inside Google Apps Script using **[GASADK (Agent Development Kit for Google Apps Script)](https://github.com/tanaikech/adk-gas)**:
 
 - **Autonomous Tool Calling**: AI foundation models such as **Google Gemini** can dynamically discover and invoke IcebergApp methods (`getValues`, `insertValues`, `update`, `deleteRows`, `asOf`) via standard MCP RPC.
-- **Natural Language to Optimized Lakehouse DML**: Business users interact with Gemini in natural language (e.g., *"Analyze sales anomalies across our IoT sensor metrics and adjust flagged calibration offsets"*). Gemini formulates queries, pushes down metadata filters through IcebergApp, and executes ACID DML updates without manual SQL intervention.
+- **Natural Language to Optimized Lakehouse DML**: Business users interact with Gemini in natural language (e.g., _"Analyze sales anomalies across our IoT sensor metrics and adjust flagged calibration offsets"_). Gemini formulates queries, pushes down metadata filters through IcebergApp, and executes ACID DML updates without manual SQL intervention.
 - **Closed-Loop Workspace Automation**: Autonomous agents can simultaneously update the Iceberg lakehouse, append audit records into Google Sheets, send Gmail notifications, and generate formatted executive briefs in Google Docs.
 
 ---
@@ -394,6 +436,7 @@ IcebergApp can be effortlessly exposed as deterministic MCP tools hosted directl
 An enterprise-ready end-user application built on top of `IcebergApp` is available in [`applications/writeback-sheets-ui`](applications/writeback-sheets-ui):
 
 ### [Apache Iceberg Writeback UI via Google Sheets](applications/writeback-sheets-ui)
+
 Transforms Google Sheets into a high-performance, interactive bidirectional writeback console for Google Cloud Lakehouse (Apache Iceberg and BigQuery).
 
 While tools like Google Connected Sheets provide read-only access to BigQuery, business operators often need to adjust records, update pricing, or resolve data quality issues directly within their spreadsheets. **Apache Iceberg Writeback UI** bridges this gap with zero external SaaS ETL dependencies:
